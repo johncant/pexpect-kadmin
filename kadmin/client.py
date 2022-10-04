@@ -1,56 +1,46 @@
 from select import select
-from .utils.mit import MITUtils
+import pexpect
+
+
+def kadmin_escape_arg(val):
+    # TODO - implement security check
+    return val
 
 
 class Client:
 
-    def __init__(self, popen, timeout=1):
-        self.popen = popen
+    def __init__(self, pexpect, timeout=1):
+        self.pexpect = pexpect
         self.timeout = timeout
-        self.utils = MITUtils()
+        self.prompts = [
+            "kadmin:  ",
+            "kadmin.local:  ",
+        ]
 
     @classmethod
-    def from_popen(cls, popen):
-        kadmin = cls(popen)
-        kadmin.recv_output()
+    def from_pexpect(cls, pexpect):
+        kadmin = cls(pexpect)
+        kadmin.pexpect.expect(kadmin.prompts)
         return kadmin
 
-    def listprincs(self):
-        output = self.command("listprincs")
+    def listprincs(self, expr=None):
+        expr = kadmin_escape_arg(expr)
+        cmd = "listprincs"
+
+        if expr:
+            cmd = cmd + " " + expr
+
+        output = self.command(cmd)
+        return [
+            line.decode('utf8')
+            for line in output.splitlines()
+        ]
+
+    def command(self, cmd):
+        self.pexpect.sendline(cmd)
+        self.pexpect.expect([cmd+r"\r\n\x1b\[\?2004l\r"])
+        self.pexpect.expect([r'\x1b\[\?2004h'])
+#        self.pexpect.expect(self.prompts)
+        output = self.pexpect.before
         return output
 
-    def send_input(self, command):
-        bcommand = command.encode('utf8')
-        self.popen.stdin.write(
-            bcommand.strip()+b"\n")
-        self.popen.stdin.flush()
-
-    def recv_output(self):
-        self.popen.stdout.flush()
-        output = []
-        while(True):
-            readable_streams = select(
-                [self.popen.stdout], [], [], self.timeout
-            )[0]
-
-            if not readable_streams:
-                break
-                raise ValueError('kadmin read timeout')
-
-            stdout, = readable_streams
-
-            raw_line = stdout.read1()
-            line = raw_line.decode('utf-8').strip()
-            print(output)
-            output.append(line)
-
-        r = "".join(output).splitlines()
-        print(r)
-        return r
-
- #       return stdout.readline()
-
-    def command(self, command):
-        self.send_input(command)
-        output = self.recv_output()
-        return self.utils.remove_prompt(output)

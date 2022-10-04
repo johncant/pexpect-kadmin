@@ -1,17 +1,17 @@
 from pytest import fixture
-from subprocess import Popen, PIPE
+from pexpect import spawn
 from kadmin.client import Client
 
 @fixture
 def process():
-    return Popen(
+    return spawn(
         "kadmin.local",
-        stdout=PIPE,
-        stdin=PIPE
+        timeout=1
     )
 
 
 def test_list_principals(process):
-    princs = Client.from_popen(process).listprincs()
+    princs = Client.from_pexpect(process).listprincs()
 
-    assert 'foo' in princs
+    expected = 'krbtgt/ATHENA.MIT.EDU@ATHENA.MIT.EDU'
+    assert expected in princs
